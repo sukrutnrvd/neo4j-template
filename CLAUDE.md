@@ -34,7 +34,9 @@ docker build \
 
 **Run the container:**
 ```bash
-docker run -p 7474:7474 -p 7687:7687 my-neo4j
+# Port 8080 = nginx (Neo4j Browser UI + Bolt via WebSocket)
+# Port 7687 = direct Bolt access for drivers
+docker run -p 8080:8080 -p 7687:7687 my-neo4j
 ```
 
 ## Build Arguments
@@ -58,14 +60,18 @@ docker run -p 7474:7474 -p 7687:7687 my-neo4j
 
 ### Railway Deployment Notes
 
-Railway serves the Neo4j Browser (port 7474) over HTTPS. Because of browser mixed-content rules, an HTTPS page cannot make unencrypted WebSocket connections, so the Bolt connector must also use TLS.
+Railway serves the app over HTTPS but Neo4j Browser (when loaded via HTTPS) cannot make unencrypted WebSocket connections to Bolt due to browser mixed-content rules.
 
-The Dockerfile generates a self-signed certificate at build time under `/var/lib/neo4j/certificates/bolt/`. The `neo4j.conf` sets `server.bolt.tls_level=OPTIONAL` so local (non-TLS) connections still work.
+**Solution:** nginx runs as a reverse proxy on port 8080 (Railway's HTTP proxy port). It routes incoming connections based on the `Upgrade` header:
+- `Upgrade: websocket` → forwarded to Neo4j Bolt (port 7687)
+- regular HTTP → forwarded to Neo4j Browser UI (port 7474)
+
+This way Railway handles TLS (using its own `*.railway.app` certificate), and Neo4j itself needs no SSL configuration.
+
+**Startup flow:** `entrypoint.sh` renders `nginx.conf.template` (substituting `$PORT`), starts Neo4j via `/startup/docker-entrypoint.sh neo4j` in the background, then runs nginx in the foreground.
 
 **To connect from Neo4j Browser on Railway:**
-1. In Railway, add a TCP proxy for port 7687 to get a public `hostname:port`
-2. In the Neo4j Browser connection screen, enter: `neo4j+ssc://hostname:port`
-   - `neo4j+ssc://` = secure Bolt but skips certificate validation (needed for self-signed certs)
+In the connection dialog, enter: `neo4j+s://your-app.railway.app` (no port — Railway uses standard 443)
 
 ### Configuration Files
 
