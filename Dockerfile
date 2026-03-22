@@ -125,8 +125,8 @@ RUN echo "HEAP_INITIAL_SIZE=${HEAP_INITIAL_SIZE}"
 RUN echo "HEAP_MAX_SIZE=${HEAP_MAX_SIZE}"
 RUN echo "PAGECACHE_SIZE=${PAGECACHE_SIZE}"
 
-# Use the preloaded database from the import stage
-COPY --from=neo4j-import /data /data
+# Store pre-built database in /data-seed (not affected by volume mounts on /data)
+COPY --from=neo4j-import /data /data-seed
 
 
 
