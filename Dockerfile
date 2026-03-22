@@ -151,6 +151,16 @@ echo "Neo4j configuration updated with environment variables"' > /update-config.
 # Run the update script before starting Neo4j
 RUN /update-config.sh
 
+# Generate self-signed certificate for Bolt SSL (required for Railway HTTPS → Bolt)
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/lib/neo4j/certificates/bolt && \
+    openssl req -x509 -newkey rsa:4096 \
+        -keyout /var/lib/neo4j/certificates/bolt/private.key \
+        -out /var/lib/neo4j/certificates/bolt/public.crt \
+        -days 3650 -nodes \
+        -subj "/CN=neo4j" && \
+    chown -R neo4j:neo4j /var/lib/neo4j/certificates/
+
 # Expose Neo4j ports
 EXPOSE 7474 7687
 
