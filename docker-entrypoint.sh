@@ -70,5 +70,21 @@ SSLEOF
     echo "TLS configuration applied to neo4j.conf"
 fi
 
+# Configure Bolt advertised address for Railway (required for Neo4j Browser to connect)
+# BOLT_ADVERTISED_ADDRESS should be set to your Railway public domain + mapped Bolt port
+# e.g. "your-app.up.railway.app:12345" (Railway assigns a random public TCP port)
+if [ -n "${BOLT_ADVERTISED_ADDRESS}" ]; then
+    sed -i "/server.bolt.advertised_address/d" /var/lib/neo4j/conf/neo4j.conf
+    echo "server.bolt.advertised_address=${BOLT_ADVERTISED_ADDRESS}" >> /var/lib/neo4j/conf/neo4j.conf
+    echo "Bolt advertised address set to: ${BOLT_ADVERTISED_ADDRESS}"
+fi
+
+# Configure HTTP advertised address if provided
+if [ -n "${HTTP_ADVERTISED_ADDRESS}" ]; then
+    sed -i "/server.http.advertised_address/d" /var/lib/neo4j/conf/neo4j.conf
+    echo "server.http.advertised_address=${HTTP_ADVERTISED_ADDRESS}" >> /var/lib/neo4j/conf/neo4j.conf
+    echo "HTTP advertised address set to: ${HTTP_ADVERTISED_ADDRESS}"
+fi
+
 # Start Neo4j
 exec neo4j console
