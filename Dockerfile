@@ -134,25 +134,14 @@ COPY neo4j.conf /var/lib/neo4j/conf/neo4j.conf
 COPY server-logs.xml /var/lib/neo4j/conf/server-logs.xml
 COPY user-logs.xml /var/lib/neo4j/conf/server-logs.xml
 
-# Create a script to update Neo4j configuration with environment variables
-RUN echo '#!/bin/bash\n\
-# Remove all existing memory configuration lines (including comments)\n\
-sed -i "/server.memory.heap.initial_size/d" /var/lib/neo4j/conf/neo4j.conf\n\
-sed -i "/server.memory.heap.max_size/d" /var/lib/neo4j/conf/neo4j.conf\n\
-sed -i "/server.memory.pagecache.size/d" /var/lib/neo4j/conf/neo4j.conf\n\
-# Add new memory configuration at the end of the file\n\
-echo "" >> /var/lib/neo4j/conf/neo4j.conf\n\
-echo "# Memory configuration from environment variables" >> /var/lib/neo4j/conf/neo4j.conf\n\
-echo "server.memory.heap.initial_size=${HEAP_INITIAL_SIZE}" >> /var/lib/neo4j/conf/neo4j.conf\n\
-echo "server.memory.heap.max_size=${HEAP_MAX_SIZE}" >> /var/lib/neo4j/conf/neo4j.conf\n\
-echo "server.memory.pagecache.size=${PAGECACHE_SIZE}" >> /var/lib/neo4j/conf/neo4j.conf\n\
-echo "Neo4j configuration updated with environment variables"' > /update-config.sh && chmod +x /update-config.sh
+# Install openssl for TLS certificate generation
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-# Run the update script before starting Neo4j
-RUN /update-config.sh
+# Copy entrypoint script that handles memory config, TLS setup, and starts Neo4j
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
-# Expose Neo4j ports
-EXPOSE 7474 7687
+# Expose Neo4j ports (7474=HTTP/Browser, 7473=HTTPS/Browser, 7687=Bolt)
+EXPOSE 7474 7473 7687
 
-# Run Neo4j
-CMD ["neo4j"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
