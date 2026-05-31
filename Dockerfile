@@ -1,5 +1,5 @@
 # Use the official Neo4j image for importing data
-FROM neo4j:5.25.1 as neo4j-import
+FROM neo4j:2026.04-community as neo4j-import
 
 # Set environment variables
 ARG NODE_CSV_URLS=""
@@ -107,7 +107,7 @@ RUN files_exist=false && \
 
 # Second stage for running Neo4j with the preloaded data
 
-FROM neo4j:5.25.1
+FROM neo4j:2026.04-community
 
 ARG DB_PASSWORD=""
 ARG HEAP_INITIAL_SIZE="1g"
@@ -125,14 +125,14 @@ RUN echo "HEAP_INITIAL_SIZE=${HEAP_INITIAL_SIZE}"
 RUN echo "HEAP_MAX_SIZE=${HEAP_MAX_SIZE}"
 RUN echo "PAGECACHE_SIZE=${PAGECACHE_SIZE}"
 
-# Use the preloaded database from the import stage
-COPY --from=neo4j-import /data /data
+# Store imported data in /data-init so a volume mount at /data doesn't hide it
+COPY --from=neo4j-import /data /data-init
 
 
 
 COPY neo4j.conf /var/lib/neo4j/conf/neo4j.conf
 COPY server-logs.xml /var/lib/neo4j/conf/server-logs.xml
-COPY user-logs.xml /var/lib/neo4j/conf/server-logs.xml
+COPY user-logs.xml /var/lib/neo4j/conf/user-logs.xml
 
 # Create a script to update Neo4j configuration with environment variables
 RUN echo '#!/bin/bash\n\
@@ -151,8 +151,22 @@ echo "Neo4j configuration updated with environment variables"' > /update-config.
 # Run the update script before starting Neo4j
 RUN /update-config.sh
 
+# Seed entrypoint: on first boot copies /data-init → /data if /data is empty
+COPY <<-'EOF' /seed-entrypoint.sh
+#!/bin/bash
+set -e
+if [ -d "/data-init/databases" ] && [ ! -d "/data/databases/neo4j" ]; then
+    echo "Seeding /data from build-time import..."
+    cp -rp /data-init/. /data/
+    echo "Seed complete."
+fi
+exec /startup/docker-entrypoint.sh "$@"
+EOF
+
+RUN chmod +x /seed-entrypoint.sh
+
 # Expose Neo4j ports
 EXPOSE 7474 7687
 
-# Run Neo4j
+ENTRYPOINT ["/seed-entrypoint.sh"]
 CMD ["neo4j"]
